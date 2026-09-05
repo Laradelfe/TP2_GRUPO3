@@ -1,0 +1,2444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TDM4 - TP2: Sistema de Signos Reactivos</title>
+  <!-- Tailwind CSS para el diseño visual de la interfaz de control -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts para una tipografía moderna y minimalista -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #05050a;
+      color: #e2e8f0;
+      /* Evitamos rebotes extraños en móvil, pero permitimos el scroll libre siempre */
+      overscroll-behavior-y: none;
+    }
+    
+    /* VITAL: Impide que los gestos táctiles dentro de los canvas muevan o hagan scroll en la página */
+    canvas {
+      touch-action: none;
+    }
+
+    /* Estilos personalizados para efectos de brillo neón retroalimentados */
+    .glow-blue {
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.1);
+    }
+    .glow-green {
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.1);
+    }
+    .glow-purple {
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.1);
+    }
+    /* Scrollbar minimalista para no arruinar la estética oscura */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090914;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e1e38;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3b82f6;
+    }
+  </style>
+</head>
+<!-- overflow-x-hidden en todo momento para habilitar el scroll vertical (Y) libremente -->
+<body class="min-h-screen w-full flex flex-col justify-start items-center bg-[#05050a] overflow-x-hidden px-2 py-4 md:px-4 md:py-8">
+
+  <!-- SECCIÓN PRINCIPAL: Sin límites estrictos de altura para que empuje el scroll -->
+  <main class="w-full max-w-4xl flex flex-col items-center justify-start">
+    
+    <!-- BARRA SUPERIOR -->
+    <div class="w-full flex justify-between items-center py-2 px-2 md:px-1 mb-4 md:mb-6">
+      <div class="flex items-center gap-2">
+        <div class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></div>
+        <span class="text-[11px] tracking-widest text-slate-400 font-semibold uppercase">FDA - UNLP</span>
+      </div>
+      
+      <button class="px-3 py-1.5 bg-[#121225] hover:bg-[#1e1e38] border border-[#1e1e38] text-slate-300 rounded-lg text-xs font-medium transition-all shadow-lg hover:border-slate-600" onclick="resetAllTiles()">
+        Reiniciar Sistema
+      </button>
+    </div>
+
+    <!-- Contenedor general de la grilla -->
+    <div id="grid-container" class="w-full flex flex-col gap-8 md:gap-4 transition-all duration-300 pb-12 md:pb-8">
+
+      <!-- ================= FILA 1: TIEMPO (Azul) ================= -->
+      <div class="border border-blue-500/35 rounded-2xl md:rounded-3xl bg-[#080812] glow-blue overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-zinc-800/30 transition-all duration-300">
+        
+        <!-- Mosaico 1: Memoria -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-memoria">
+          <!-- Header Menú -->
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-memoria">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-blue-400 uppercase">MEMORIA</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-blue-950/50 text-blue-300 border border-blue-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Pasado</span>
+          </div>
+          <!-- Header Interactivo (Solo Desktop). Agregamos 'sticky top-0' por si haces scroll con la grilla abierta -->
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-memoria">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-blue-400 uppercase">MEMORIA <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('memoria', event)">VOLVER</button>
+          </div>
+          <!-- Contenedor: aspect-square siempre para que mantenga proporción perfecta -->
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-memoria">
+            <canvas id="canvas-memoria" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <!-- Overlay interactivo: ¡oculto en móvil (hidden md:flex)! -->
+            <div id="overlay-memoria" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('memoria')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mosaico 2: Herencia -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-herencia">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-herencia">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-blue-400 uppercase">HERENCIA</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-blue-950/50 text-blue-300 border border-blue-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Pasado</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-herencia">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-blue-400 uppercase">HERENCIA <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('herencia', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-herencia">
+            <canvas id="canvas-herencia" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-herencia" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('herencia')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mosaico 3: Caducidad -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-caducidad">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-caducidad">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-blue-400 uppercase">CADUCIDAD</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-blue-950/50 text-blue-300 border border-blue-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Pasado</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-caducidad">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-blue-400 uppercase">CADUCIDAD <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('caducidad', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-caducidad">
+            <canvas id="canvas-caducidad" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-caducidad" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('caducidad')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================= FILA 2: VÍNCULO (Verde) ================= -->
+      <div class="border border-green-500/35 rounded-2xl md:rounded-3xl bg-[#080812] glow-green overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-zinc-800/30 transition-all duration-300">
+
+        <!-- Mosaico 4: Identidad -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-identidad">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-identidad">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-green-400 uppercase">IDENTIDAD</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-green-950/50 text-green-300 border border-green-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Presente</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-identidad">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-green-400 uppercase">IDENTIDAD <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('identidad', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-identidad">
+            <canvas id="canvas-identidad" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-identidad" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('identidad')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mosaico 5: Empatía -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-empatia">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-empatia">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-green-400 uppercase">EMPATÍA</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-green-950/50 text-green-300 border border-green-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Presente</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-empatia">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-green-400 uppercase">EMPATÍA <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('empatia', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-empatia">
+            <canvas id="canvas-empatia" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-empatia" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('empatia')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mosaico 6: Colaboración -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-colaboracion">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-colaboracion">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-green-400 uppercase">COLABORACIÓN</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-green-950/50 text-green-300 border border-green-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Presente</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-colaboracion">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-green-400 uppercase">COLABORACIÓN <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('colaboracion', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-colaboracion">
+            <canvas id="canvas-colaboracion" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-colaboracion" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('colaboracion')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================= FILA 3: FUTURO (Púrpura) ================= -->
+      <div class="border border-purple-500/35 rounded-2xl md:rounded-3xl bg-[#080812] glow-purple overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-zinc-800/30 transition-all duration-300">
+
+        <!-- Mosaico 7: Incertidumbre -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-incertidumbre">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-incertidumbre">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-purple-400 uppercase">INCERTIDUMBRE</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-purple-950/50 text-purple-300 border border-purple-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Futuro</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-incertidumbre">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-purple-400 uppercase">INCERTIDUMBRE <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('incertidumbre', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-incertidumbre">
+            <canvas id="canvas-incertidumbre" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-incertidumbre" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('incertidumbre')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mosaico 8: Ansiedad -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-ansiedad">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-ansiedad">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-purple-400 uppercase">ANSIEDAD</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-purple-950/50 text-purple-300 border border-purple-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Futuro</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-ansiedad">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-purple-400 uppercase">ANSIEDAD <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('ansiedad', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-ansiedad">
+            <canvas id="canvas-ansiedad" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-ansiedad" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('ansiedad')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mosaico 9: Expectativa -->
+        <div class="flex flex-col relative group transition-all duration-300" id="card-expectativa">
+          <div class="py-3 md:py-2 px-4 md:px-3 border-b border-[#13132a]/40 flex justify-between items-center bg-[#070712] academic-only" id="header-expectativa">
+            <div><h2 class="text-xs md:text-[11px] font-bold tracking-widest text-purple-400 uppercase">EXPECTATIVA</h2></div>
+            <span class="text-[10px] md:text-[9px] bg-purple-950/50 text-purple-300 border border-purple-800/30 px-2 py-0.5 md:py-0.2 rounded-full font-mono">Futuro</span>
+          </div>
+          <div class="hidden py-2 px-3 border-b border-[#13132a]/40 justify-between items-center bg-[#070712] sticky top-0 z-20" id="active-header-expectativa">
+            <div><h2 class="text-[11px] font-bold tracking-widest text-purple-400 uppercase">EXPECTATIVA <span class="text-slate-500 lowercase ml-2 font-normal">/ interactuando</span></h2></div>
+            <button class="bg-[#1e1e38] border border-slate-600 text-slate-200 hover:text-white px-3 py-1 rounded-md text-[11px] font-bold transition-colors shadow-lg" onclick="closeTile('expectativa', event)">VOLVER</button>
+          </div>
+          <div class="relative w-full aspect-square bg-[#030308]" id="container-expectativa">
+            <canvas id="canvas-expectativa" class="w-full h-full block cursor-crosshair absolute inset-0"></canvas>
+            <div id="overlay-expectativa" class="absolute inset-0 z-10 cursor-pointer hidden md:flex items-center justify-center bg-transparent hover:bg-white/5 transition-all" onclick="openTile('expectativa')">
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-[#05050a]/90 text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-white/10 shadow-xl pointer-events-none transform scale-95 group-hover:scale-100">
+                Tocar para interactuar
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MOTOR LOGÍSTICO COMPLETO EN JAVASCRIPT -->
+  <script>
+    // Configuración General del Entorno
+    let soundEnabled = false;
+    let isShiftPressed = false;
+    
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') isShiftPressed = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') isShiftPressed = false;
+    });
+
+    function triggerResize() {
+      window.dispatchEvent(new Event('resize'));
+    }
+
+    // ================= SÍNTESIS DE AUDIO EN TIEMPO REAL (Web Audio API) =================
+    let audioCtx = null;
+    let mainGain = null;
+    const synthNodes = {};
+
+    function initAudio() {
+      if (audioCtx) return;
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        mainGain = audioCtx.createGain();
+        mainGain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        mainGain.connect(audioCtx.destination);
+        
+        const drone = audioCtx.createOscillator();
+        const droneGain = audioCtx.createGain();
+        drone.type = 'triangle';
+        drone.frequency.setValueAtTime(55, audioCtx.currentTime);
+        droneGain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(150, audioCtx.currentTime);
+
+        drone.connect(filter);
+        filter.connect(droneGain);
+        droneGain.connect(mainGain);
+        drone.start();
+        
+        synthNodes.drone = drone;
+      } catch (e) {
+        console.warn("Audio Context fallido o denegado por el navegador:", e);
+      }
+    }
+
+    function playSynthNote(freq, type = 'sine', duration = 0.5, gainVal = 0.5) {
+      if (!soundEnabled || !audioCtx) return;
+      
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      
+      gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      
+      osc.connect(gain);
+      gain.connect(mainGain);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // ================= ENTORNO DE CANVAS INTEGRADOS (OPTIMIZADO FPS) =================
+    const canvases = {};
+    const controllers = {};
+
+    function setupCanvas(id, ControllerClass) {
+      const canvas = document.getElementById(`canvas-${id}`);
+      if (!canvas) return;
+      canvases[id] = canvas;
+      
+      const controller = new ControllerClass(canvas);
+      controllers[id] = controller;
+
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        const isMobile = window.innerWidth < 768;
+        const maxDpr = isMobile ? 1.5 : 3; 
+        const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+        
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        controller.width = rect.width;
+        controller.height = rect.height;
+        controller.dpr = dpr;
+        controller.onResize();
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+
+      controller.isVisible = false;
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          controller.isVisible = entry.isIntersecting;
+        });
+      }, { threshold: 0.05 });
+      observer.observe(canvas);
+
+      canvas.addEventListener('pointerdown', (e) => {
+        canvas.setPointerCapture(e.pointerId);
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        controller.onPointerDown(e.pointerId, x, y, e);
+      });
+
+      canvas.addEventListener('pointermove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        controller.onPointerMove(e.pointerId, x, y, e);
+      });
+
+      canvas.addEventListener('pointerup', (e) => {
+        canvas.releasePointerCapture(e.pointerId);
+        controller.onPointerUp(e.pointerId, e);
+      });
+
+      canvas.addEventListener('pointercancel', (e) => {
+        canvas.releasePointerCapture(e.pointerId);
+        controller.onPointerUp(e.pointerId, e);
+      });
+    }
+
+    class BaseController {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.width = 300;
+        this.height = 300;
+        this.dpr = 1;
+        this.pointers = new Map();
+        this.time = 0;
+        this.isVisible = false;
+        this.init();
+      }
+
+      init() {}
+      onResize() {}
+      update() {}
+      draw(ctx) {}
+
+      getPointerPosition(id) {
+        return this.pointers.get(id);
+      }
+
+      onPointerDown(id, x, y, e) {
+        this.pointers.set(id, { x, y });
+        this.triggerInteraction(x, y);
+
+        if (isShiftPressed) {
+          const mirrorX = this.width - x;
+          const mirrorY = this.height - y;
+          this.pointers.set(9999, { x: mirrorX, y: mirrorY });
+          this.triggerInteraction(mirrorX, mirrorY);
+        }
+      }
+
+      onPointerMove(id, x, y, e) {
+        if (this.pointers.has(id)) {
+          this.pointers.set(id, { x, y });
+        }
+        if (isShiftPressed && this.pointers.has(9999)) {
+          const mirrorX = this.width - x;
+          const mirrorY = this.height - y;
+          this.pointers.set(9999, { x: mirrorX, y: mirrorY });
+        }
+      }
+
+      onPointerUp(id, e) {
+        this.pointers.delete(id);
+        if (id !== 9999) {
+          this.pointers.delete(9999);
+        }
+      }
+
+      triggerInteraction(x, y) {}
+      reset() { this.init(); }
+    }
+
+    function globalLoop() {
+      Object.values(controllers).forEach(controller => {
+        if (controller.isVisible) {
+          controller.time += 0.016;
+          controller.update();
+          const ctx = controller.canvas.getContext('2d');
+          if (ctx) {
+            ctx.save();
+            ctx.scale(controller.dpr, controller.dpr);
+            controller.draw(ctx);
+            ctx.restore();
+          }
+        }
+      });
+      requestAnimationFrame(globalLoop);
+    }
+
+    // ==========================================
+    // SUBSISTEMA 1: TIEMPO (Azul) - CONTROLADORES
+    // ==========================================
+
+    class MemoriaController extends BaseController {
+      init() {
+        this.traces = [];
+        this.maxTraces = 50; 
+      }
+
+      update() {
+        this.pulse = Math.sin(this.time * 2.5) * 8 + 40;
+        this.pulseOpacity = (Math.sin(this.time * 2.5) + 1) / 2 * 0.4 + 0.1;
+
+        this.traces.forEach(trace => {
+          if (trace.progress < 1.0) {
+            trace.progress += 0.04;
+            if (trace.progress > 1.0) trace.progress = 1.0;
+            trace.ease = 1 - Math.pow(1 - trace.progress, 4);
+          }
+        });
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        if (this.traces.length === 0) {
+          ctx.save();
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = '#3b82f6';
+          ctx.strokeStyle = `rgba(59, 130, 246, ${this.pulseOpacity})`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(this.width / 2, this.height / 2, this.pulse, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = `rgba(59, 130, 246, ${this.pulseOpacity * 0.3})`;
+          ctx.beginPath();
+          ctx.arc(this.width / 2, this.height / 2, this.pulse + 15, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        this.traces.forEach(trace => {
+          ctx.save();
+          ctx.translate(trace.x, trace.y);
+          ctx.globalCompositeOperation = 'screen';
+
+          const currentSize = trace.targetSize * trace.ease;
+
+          if (trace.progress < 1.0) {
+            const waveSize = trace.targetSize * 4.5 * trace.progress; 
+            const waveAlpha = 1 - trace.progress; 
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#60a5fa';
+            ctx.strokeStyle = `rgba(96, 165, 250, ${waveAlpha})`;
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.arc(0, 0, waveSize, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+
+          ctx.shadowBlur = 22;
+          ctx.shadowColor = '#3b82f6';
+          ctx.strokeStyle = `rgba(147, 197, 253, ${trace.alpha + 0.3})`;
+          ctx.fillStyle = `rgba(30, 58, 138, ${trace.alpha * 0.35})`;
+          ctx.lineWidth = 3.2;
+
+          ctx.beginPath();
+          ctx.arc(0, 0, currentSize, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = '#60a5fa';
+          ctx.fillStyle = `rgba(147, 197, 253, ${trace.alpha + 0.3})`;
+          ctx.beginPath();
+          ctx.arc(0, 0, currentSize * 0.18, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        });
+      }
+
+      onPointerDown(id, x, y, e) {
+        super.onPointerDown(id, x, y, e);
+        this.traces.push({
+          x: x,
+          y: y,
+          targetSize: Math.random() * 6 + 18,
+          alpha: Math.random() * 0.3 + 0.5,
+          progress: 0,
+          ease: 0
+        });
+
+        if (this.traces.length > this.maxTraces) {
+          this.traces.shift();
+        }
+        playSynthNote(150 + Math.random() * 80, 'sine', 1.0, 0.4);
+      }
+    }
+
+    class HerenciaController extends BaseController {
+      init() {
+        const primitives = ['square', 'circle', 'triangle'];
+        const rootShape = primitives[Math.floor(Math.random() * primitives.length)];
+        let inner1, inner2, inner3, inner4;
+        do {
+          inner1 = primitives[Math.floor(Math.random() * primitives.length)];
+          inner2 = primitives[Math.floor(Math.random() * primitives.length)];
+          inner3 = primitives[Math.floor(Math.random() * primitives.length)];
+          inner4 = primitives[Math.floor(Math.random() * primitives.length)];
+        } while (inner1 === rootShape || inner2 === rootShape);
+
+        this.nodes = [
+          { id: 0, parent: null, radius: 0, angle: 0, size: 34, shape: rootShape, innerShape: inner1, active: true, animProgress: 1.0, gen: 0 },
+          { id: 1, parent: 0, radius: 0.9, angle: Math.random() * 0.5 + 0.1, size: 22, shape: inner1, innerShape: inner2, active: false, animProgress: 0, gen: 1 },
+          { id: 2, parent: 0, radius: 0.9, angle: Math.random() * 0.5 + 1.6, size: 22, shape: inner1, innerShape: inner3, active: false, animProgress: 0, gen: 1 },
+          { id: 3, parent: 0, radius: 0.9, angle: Math.random() * 0.5 + 3.2, size: 22, shape: inner1, innerShape: inner2, active: false, animProgress: 0, gen: 1 },
+          { id: 4, parent: 0, radius: 0.9, angle: Math.random() * 0.5 + 4.7, size: 22, shape: inner1, innerShape: inner3, active: false, animProgress: 0, gen: 1 },
+          { id: 5, parent: 1, radius: 1.6, angle: 1.0 - 0.3, size: 16, shape: inner2, innerShape: inner4, active: false, animProgress: 0, gen: 2 },
+          { id: 6, parent: 1, radius: 1.6, angle: 1.0 + 0.3, size: 16, shape: inner2, innerShape: rootShape, active: false, animProgress: 0, gen: 2 },
+          { id: 7, parent: 2, radius: 1.6, angle: 2.3 - 0.3, size: 16, shape: inner3, innerShape: rootShape, active: false, animProgress: 0, gen: 2 },
+          { id: 8, parent: 2, radius: 1.6, angle: 2.3 + 0.3, size: 16, shape: inner3, innerShape: inner4, active: false, animProgress: 0, gen: 2 },
+          { id: 9, parent: 3, radius: 1.6, angle: 3.8 - 0.3, size: 16, shape: inner2, innerShape: inner4, active: false, animProgress: 0, gen: 2 },
+          { id: 10, parent: 3, radius: 1.6, angle: 3.8 + 0.3, size: 16, shape: inner2, innerShape: rootShape, active: false, animProgress: 0, gen: 2 },
+          { id: 11, parent: 4, radius: 1.6, angle: 5.4 - 0.3, size: 16, shape: inner3, innerShape: rootShape, active: false, animProgress: 0, gen: 2 },
+          { id: 12, parent: 4, radius: 1.6, angle: 5.4 + 0.3, size: 16, shape: inner3, innerShape: inner4, active: false, animProgress: 0, gen: 2 },
+          { id: 13, parent: 5, radius: 2.2, angle: 0.7, size: 13, shape: inner4, innerShape: null, active: false, animProgress: 0, gen: 3 },
+          { id: 14, parent: 6, radius: 2.2, angle: 1.3, size: 13, shape: rootShape, innerShape: null, active: false, animProgress: 0, gen: 3 },
+          { id: 15, parent: 7, radius: 2.2, angle: 2.0, size: 13, shape: rootShape, innerShape: null, active: false, animProgress: 0, gen: 3 },
+          { id: 16, parent: 8, radius: 2.2, angle: 2.6, size: 13, shape: inner4, innerShape: null, active: false, animProgress: 0, gen: 3 },
+          { id: 17, parent: 9, radius: 2.2, angle: 3.5, size: 13, shape: inner4, innerShape: null, active: false, animProgress: 0, gen: 3 },
+          { id: 18, parent: 10, radius: 2.2, angle: 4.1, size: 13, shape: rootShape, innerShape: null, active: false, animProgress: 0, gen: 3 },
+          { id: 19, parent: 11, radius: 2.2, angle: 5.1, size: 13, shape: rootShape, innerShape: null, active: false, animProgress: 0, gen: 3 },
+          { id: 20, parent: 12, radius: 2.2, angle: 5.7, size: 13, shape: inner4, innerShape: null, active: false, animProgress: 0, gen: 3 }
+        ];
+
+        this.randomizeAngles();
+        this.pulse = 0;
+        this.updateNodePositions();
+      }
+
+      randomizeAngles() {
+        const globalRotation = Math.random() * Math.PI * 2;
+        this.nodes.forEach(node => {
+          if (node.parent !== null) {
+            node.angle += globalRotation + (Math.random() - 0.5) * 0.3;
+          }
+        });
+      }
+
+      updateNodePositions() {
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const s = Math.min(this.width, this.height) * 0.21;
+
+        this.nodes.forEach(node => {
+          if (node.parent === null) {
+            node.x = cx;
+            node.y = cy;
+          } else {
+            node.x = cx + Math.cos(node.angle) * (s * node.radius);
+            node.y = cy + Math.sin(node.angle) * (s * node.radius);
+          }
+        });
+      }
+
+      onResize() {
+        this.updateNodePositions();
+      }
+
+      update() {
+        this.pulse = Math.sin(this.time * 3) * 6 + 10;
+        this.nodes.forEach(node => {
+          if (node.active && node.animProgress < 1.0) {
+            node.animProgress += 0.06;
+            if (node.animProgress > 1.0) node.animProgress = 1.0;
+          }
+        });
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        this.nodes.forEach(node => {
+          if (node.parent !== null) {
+            const parent = this.nodes[node.parent];
+            if (node.active && node.animProgress > 0) {
+              ctx.save();
+              ctx.shadowBlur = 20;
+              ctx.shadowColor = '#60a5fa';
+              ctx.strokeStyle = 'rgba(96, 165, 250, 0.9)';
+              ctx.lineWidth = 2.0;
+
+              const currentX = parent.x + (node.x - parent.x) * node.animProgress;
+              const currentY = parent.y + (node.y - parent.y) * node.animProgress;
+
+              ctx.beginPath();
+              ctx.moveTo(parent.x, parent.y);
+              ctx.lineTo(currentX, currentY);
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+        });
+
+        this.nodes.forEach(node => {
+          if (!node.active || node.animProgress <= 0) return;
+
+          ctx.save();
+          ctx.translate(node.x, node.y);
+          ctx.scale(node.animProgress, node.animProgress);
+
+          ctx.shadowBlur = 25;
+          ctx.shadowColor = '#3b82f6';
+          ctx.strokeStyle = '#60a5fa';
+          ctx.fillStyle = 'rgba(30, 58, 138, 0.5)';
+          ctx.lineWidth = 2.0;
+
+          let hasUnawakenedChildren = this.nodes.some(c => c.parent === node.id && !c.active);
+          if (hasUnawakenedChildren) {
+            ctx.beginPath();
+            ctx.arc(0, 0, node.size + (this.pulse * 0.7), 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(96, 165, 250, ${0.4 - (this.pulse/25)})`;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            
+            ctx.strokeStyle = '#60a5fa';
+            ctx.lineWidth = 2.0;
+          }
+
+          this.drawPrimitive(ctx, node.shape, node.size);
+
+          if (node.innerShape) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#60a5fa';
+            ctx.strokeStyle = '#93c5fd';
+            ctx.lineWidth = 1.4;
+            this.drawPrimitive(ctx, node.innerShape, node.size * 0.22);
+          }
+
+          ctx.restore();
+        });
+      }
+
+      drawPrimitive(ctx, type, size) {
+        ctx.beginPath();
+        if (type === 'square') {
+          ctx.strokeRect(-size/2, -size/2, size, size);
+          ctx.fillRect(-size/2, -size/2, size, size);
+        } else if (type === 'circle') {
+          ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fill();
+        } else if (type === 'triangle') {
+          ctx.moveTo(0, -size/2);
+          ctx.lineTo(size/2, size/2);
+          ctx.lineTo(-size/2, size/2);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.fill();
+        }
+      }
+
+      onPointerDown(id, x, y, e) {
+        super.onPointerDown(id, x, y, e);
+        let hitNode = false;
+
+        this.nodes.forEach(node => {
+          let hasUnawakenedChildren = this.nodes.some(c => c.parent === node.id && !c.active);
+          if (node.active && hasUnawakenedChildren && Math.hypot(node.x - x, node.y - y) * 1.3 < node.size) {
+            hitNode = true;
+            let wokeSomeone = false;
+
+            this.nodes.forEach(child => {
+              if (child.parent === node.id && !child.active) {
+                child.shape = node.innerShape; 
+                child.active = true;
+                child.animProgress = 0.01;
+                wokeSomeone = true;
+                playSynthNote(330 + child.id * 35, 'sine', 0.8, 0.25);
+              }
+            });
+
+            if (!wokeSomeone) {
+              playSynthNote(220, 'triangle', 0.3, 0.1);
+            }
+          }
+        });
+
+        let isAnyChildActive = this.nodes.some(n => n.parent !== null && n.active);
+        if (!hitNode && isAnyChildActive) {
+          this.init();
+          playSynthNote(150, 'sawtooth', 0.5, 0.3);
+        }
+      }
+    }
+
+    class CaducidadController extends BaseController {
+      init() {
+        const primitives = ['square', 'circle', 'triangle'];
+        this.shape = primitives[Math.floor(Math.random() * primitives.length)];
+        this.integrity = 1.0; 
+        this.stage = 0;       
+        this.fragments = [];  
+        this.shockwaves = []; 
+        this.shakeTimer = 0;  
+        this.pulse = 0;
+      }
+
+      update() {
+        this.pulse = Math.sin(this.time * 3) * 6 + 10;
+        if (this.shakeTimer > 0) this.shakeTimer--;
+
+        this.shockwaves.forEach(sw => {
+          sw.radius += sw.speed;
+          sw.alpha -= 0.04;
+          if (sw.alpha < 0) sw.alpha = 0;
+        });
+        this.shockwaves = this.shockwaves.filter(sw => sw.alpha > 0);
+
+        this.fragments.forEach(f => {
+          f.x += f.vx;
+          f.y += f.vy;
+          f.vx *= 0.95; 
+          f.vy *= 0.95;
+          f.rotation += f.vRot;
+          f.alpha -= 0.015;
+          if (f.alpha < 0) f.alpha = 0;
+        });
+        this.fragments = this.fragments.filter(f => f.alpha > 0);
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        
+        let offsetX = 0;
+        let offsetY = 0;
+        if (this.shakeTimer > 0) {
+          offsetX = (Math.random() - 0.5) * (this.integrity * 14);
+          offsetY = (Math.random() - 0.5) * (this.integrity * 14);
+        }
+
+        const size = 60 * Math.max(0.3, this.integrity);
+
+        this.shockwaves.forEach(sw => {
+          ctx.save();
+          ctx.shadowBlur = 25;
+          ctx.shadowColor = '#60a5fa';
+          ctx.strokeStyle = `rgba(96, 165, 250, ${sw.alpha})`;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, sw.radius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        });
+
+        ctx.save();
+        ctx.translate(cx + offsetX, cy + offsetY);
+
+        if (this.integrity <= 0) {
+          ctx.save();
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#3b82f6';
+          ctx.strokeStyle = 'rgba(59, 130, 246, 0.2)'; 
+          ctx.lineWidth = 1.0;
+          this.drawPrimitive(ctx, this.shape, 30);
+          ctx.restore();
+        } else {
+          ctx.shadowBlur = 30 * this.integrity;
+          ctx.shadowColor = '#60a5fa';
+          
+          ctx.strokeStyle = `rgba(96, 165, 250, ${Math.max(0.3, this.integrity)})`;
+          ctx.fillStyle = `rgba(30, 58, 138, ${this.integrity * 0.45})`;
+          ctx.lineWidth = 1.2 + (2.5 * this.integrity);
+
+          if (this.integrity > 0) {
+            ctx.beginPath();
+            ctx.arc(0, 0, size + (this.pulse * 0.7), 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(96, 165, 250, ${(0.35 - (this.pulse/25)) * this.integrity})`;
+            ctx.lineWidth = 1.0;
+            ctx.stroke();
+            
+            ctx.strokeStyle = `rgba(96, 165, 250, ${Math.max(0.4, this.integrity)})`;
+            ctx.lineWidth = 1.2 + (2.5 * this.integrity);
+          }
+
+          if (this.stage === 3) ctx.setLineDash([5, 5]);
+          this.drawPrimitive(ctx, this.shape, size);
+          ctx.setLineDash([]);
+        }
+
+        ctx.restore();
+
+        this.fragments.forEach(f => {
+          ctx.save();
+          ctx.translate(f.x, f.y);
+          ctx.rotate(f.rotation);
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = '#60a5fa';
+          ctx.strokeStyle = `rgba(96, 165, 250, ${f.alpha})`;
+          ctx.fillStyle = `rgba(30, 58, 138, ${f.alpha * 0.5})`;
+          ctx.lineWidth = 1.2;
+          this.drawPrimitive(ctx, f.shape, f.size);
+          ctx.restore();
+        });
+      }
+
+      drawPrimitive(ctx, type, size) {
+        ctx.beginPath();
+        if (type === 'square') {
+          ctx.strokeRect(-size/2, -size/2, size, size);
+          ctx.fillRect(-size/2, -size/2, size, size);
+        } else if (type === 'circle') {
+          ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fill();
+        } else if (type === 'triangle') {
+          ctx.moveTo(0, -size/2);
+          ctx.lineTo(size/2, size/2);
+          ctx.lineTo(-size/2, size/2);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.fill();
+        }
+      }
+
+      onPointerDown(id, x, y, e) {
+        super.onPointerDown(id, x, y, e);
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const hit = Math.hypot(cx - x, cy - y) < 70;
+
+        if (hit && this.integrity > 0) {
+          this.stage++;
+          this.integrity -= 0.25; 
+          if (this.integrity < 0) this.integrity = 0;
+          this.shakeTimer = 12; 
+
+          this.shockwaves.push({ radius: 20, speed: 6, alpha: 0.9 });
+
+          for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 6 + 3;
+            this.fragments.push({
+              x: cx,
+              y: cy,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              size: Math.random() * 10 + 6,
+              shape: ['square', 'circle', 'triangle'][Math.floor(Math.random() * 3)],
+              rotation: Math.random() * Math.PI,
+              vRot: (Math.random() - 0.5) * 0.2,
+              alpha: 0.9
+            });
+          }
+          playSynthNote(350 - (this.stage * 70), 'sawtooth', 0.8, 0.25);
+        } else if (!hit && this.integrity <= 0) {
+          this.init();
+          playSynthNote(220, 'sine', 0.8, 0.3);
+        }
+      }
+    }
+
+    // ==========================================
+    // SUBSISTEMA 2: VÍNCULO (Verde) - CONTROLADORES
+    // ==========================================
+
+    class IdentidadController extends BaseController {
+      init() {
+        this.pointers = new Map();
+        this.primitives = ['square', 'circle', 'triangle'];
+        this.chargeProgress = 0.0; 
+        this.pulse = 0;
+      }
+
+      update() {
+        this.pulse = Math.sin(this.time * 3) * 6 + 10;
+        const pointerCount = this.pointers.size;
+
+        if (pointerCount >= 2) {
+          const chargeSpeed = pointerCount === 3 ? 0.005 : 0.002; 
+          this.chargeProgress += chargeSpeed;
+          if (this.chargeProgress > 1.0) this.chargeProgress = 1.0;
+        } else {
+          if (this.chargeProgress < 1.0) {
+            this.chargeProgress -= 0.005;
+            if (this.chargeProgress < 0.0) this.chargeProgress = 0.0;
+          }
+        }
+
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+
+        this.pointers.forEach((p) => {
+          if (Math.random() < 0.25) {
+            p.particles.push({ progress: 0, speed: Math.random() * 0.015 + 0.01 });
+          }
+          p.particles.forEach(pt => pt.progress += pt.speed);
+          p.particles = p.particles.filter(pt => pt.progress < 1.0);
+        });
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const pointerCount = this.pointers.size;
+
+        if (pointerCount < 2 || this.chargeProgress === 0) {
+          ctx.save();
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = '#10b981';
+          ctx.strokeStyle = `rgba(16, 185, 129, ${0.3 + Math.sin(this.time * 4) * 0.2})`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 50 + this.pulse, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        this.pointers.forEach((p) => {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = '#34d399';
+          ctx.strokeStyle = '#6ee7b7';
+          ctx.fillStyle = 'rgba(6, 78, 59, 0.5)';
+          ctx.lineWidth = 2.0;
+          this.drawPrimitive(ctx, p.shape, 28);
+          ctx.restore();
+
+          p.particles.forEach(pt => {
+            const currentX = p.x + (cx - p.x) * pt.progress;
+            const currentY = p.y + (cy - p.y) * pt.progress;
+            const alpha = 1.0 - pt.progress; 
+
+            ctx.save();
+            ctx.translate(currentX, currentY);
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#34d399';
+            ctx.strokeStyle = `rgba(110, 231, 183, ${alpha})`;
+            ctx.fillStyle = `rgba(6, 78, 59, ${alpha * 0.6})`;
+            ctx.lineWidth = 1.0;
+            this.drawPrimitive(ctx, p.shape, 10);
+            ctx.restore();
+          });
+        });
+
+        if (this.chargeProgress > 0) {
+          const ringRadius = 65; 
+          ctx.save();
+          ctx.translate(cx, cy);
+
+          ctx.shadowBlur = 15 * this.chargeProgress;
+          ctx.shadowColor = '#10b981';
+          ctx.strokeStyle = 'rgba(6, 78, 59, 0.8)';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#34d399';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(0, 0, ringRadius, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * this.chargeProgress));
+          ctx.stroke();
+
+          ctx.strokeStyle = '#6ee7b7';
+          ctx.fillStyle = `rgba(6, 78, 59, ${0.3 + (this.chargeProgress * 0.5)})`;
+          ctx.lineWidth = 2.0;
+          
+          const dynamicCoreDiameter = (ringRadius * 1.8) * this.chargeProgress;
+          this.drawPrimitive(ctx, 'circle', dynamicCoreDiameter);
+
+          if (this.chargeProgress >= 1.0) {
+            let idx = 0;
+            this.pointers.forEach((p) => {
+              ctx.save();
+              ctx.rotate((idx * Math.PI * 2) / Math.max(1, pointerCount) + (this.time * 0.4));
+              ctx.translate(0, ringRadius * 0.45);
+              ctx.shadowBlur = 20;
+              ctx.shadowColor = '#34d399';
+              ctx.strokeStyle = '#6ee7b7';
+              ctx.fillStyle = 'rgba(6, 78, 59, 0.7)';
+              ctx.lineWidth = 1.5;
+              this.drawPrimitive(ctx, p.shape, 32);
+              ctx.restore();
+              idx++;
+            });
+          }
+          ctx.restore();
+        }
+      }
+
+      drawPrimitive(ctx, type, size) {
+        ctx.beginPath();
+        if (type === 'square') {
+          ctx.strokeRect(-size/2, -size/2, size, size);
+          ctx.fillRect(-size/2, -size/2, size, size);
+        } else if (type === 'circle') {
+          ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fill();
+        } else if (type === 'triangle') {
+          ctx.moveTo(0, -size/2);
+          ctx.lineTo(size/2, size/2);
+          ctx.lineTo(-size/2, size/2);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.fill();
+        }
+      }
+
+      onPointerDown(id, x, y, e) {
+        if (this.pointers.size < 3 && !this.pointers.has(id)) {
+          const randomShape = this.primitives[Math.floor(Math.random() * this.primitives.length)];
+          this.pointers.set(id, { x, y, shape: randomShape, particles: [] });
+          playSynthNote(300 + (this.pointers.size * 80), 'sine', 0.6, 0.2);
+        }
+      }
+
+      onPointerMove(id, x, y, e) {}
+
+      onPointerUp(id, x, y, e) {
+        if (this.chargeProgress >= 1.0) {
+          this.chargeProgress = 0.0;
+          this.pointers.clear();
+          playSynthNote(110, 'sawtooth', 0.7, 0.3);
+          return;
+        }
+
+        if (this.pointers.has(id)) {
+          this.pointers.delete(id);
+          playSynthNote(160, 'triangle', 0.3, 0.15);
+        }
+      }
+
+      onPointerCancel(id, x, y, e) {
+        if (this.chargeProgress >= 1.0) {
+          this.chargeProgress = 0.0;
+          this.pointers.clear();
+          playSynthNote(110, 'sawtooth', 0.7, 0.3);
+          return;
+        }
+        if (this.pointers.has(id)) this.pointers.delete(id);
+      }
+    }
+
+    class EmpatiaController extends BaseController {
+      init() {
+        this.pointers = new Map();
+        this.primitives = ['square', 'circle', 'triangle'];
+        this.empathyProgress = 0.0;
+        this.illuminationProgress = 0.0;
+        this.isShiftPressed = false;
+        this.completedSoundPlayed = false;
+
+        this.keyDownHandler = (e) => { if (e.key === 'Shift') this.isShiftPressed = true; };
+        this.keyUpHandler = (e) => {
+          if (e.key === 'Shift') {
+            this.isShiftPressed = false;
+            if (this.pointers.has('simulated_mirror')) this.pointers.delete('simulated_mirror');
+          }
+        };
+
+        window.addEventListener('keydown', this.keyDownHandler);
+        window.addEventListener('keyup', this.keyUpHandler);
+      }
+
+      update() {
+        const pointerCount = this.pointers.size;
+
+        if (pointerCount >= 2) {
+          if (this.empathyProgress < 1.0) {
+            this.empathyProgress += 0.008;
+            if (this.empathyProgress > 1.0) this.empathyProgress = 1.0;
+          } else {
+            this.illuminationProgress += 0.015;
+            if (this.illuminationProgress > 1.0) this.illuminationProgress = 1.0;
+          }
+
+          if (this.illuminationProgress >= 0.8 && !this.completedSoundPlayed) {
+            this.completedSoundPlayed = true;
+            playSynthNote(523.25, 'sine', 0.8, 0.2);
+          }
+        } else {
+          this.empathyProgress -= 0.015;
+          if (this.empathyProgress < 0.0) this.empathyProgress = 0.0;
+          this.illuminationProgress -= 0.025;
+          if (this.illuminationProgress < 0.0) this.illuminationProgress = 0.0;
+          this.completedSoundPlayed = false;
+        }
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const pointerCount = this.pointers.size;
+
+        if (pointerCount < 2) {
+          ctx.save();
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = '#10b981';
+          const invitePulse = Math.sin(this.time * 2.5) * 6 + 45;
+          ctx.strokeStyle = `rgba(16, 185, 129, ${0.25 + Math.sin(this.time * 3) * 0.15})`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, invitePulse, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        const points = Array.from(this.pointers.values());
+
+        if (points.length >= 2 && this.empathyProgress > 0) {
+          let pairIndex = 0;
+          for (let i = 0; i < points.length; i++) {
+            for (let j = i + 1; j < points.length; j++) {
+              const p1 = points[i];
+              const p2 = points[j];
+              const midX = (p1.x + p2.x) / 2;
+              const midY = (p1.y + p2.y) / 2;
+
+              const tip1X = p1.x + (midX - p1.x) * this.empathyProgress;
+              const tip1Y = p1.y + (midY - p1.y) * this.empathyProgress;
+
+              const tip2X = p2.x + (midX - p2.x) * this.empathyProgress;
+              const tip2Y = p2.y + (midY - p2.y) * this.empathyProgress;
+
+              if (this.illuminationProgress < 1.0) {
+                ctx.save();
+                const dashedAlpha = 0.35 * (1.0 - this.illuminationProgress);
+                ctx.strokeStyle = `rgba(34, 197, 94, ${dashedAlpha})`;
+                ctx.lineWidth = 1.8;
+                ctx.setLineDash([4, 4]);
+
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(tip1X, tip1Y);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(p2.x, p2.y);
+                ctx.lineTo(tip2X, tip2Y);
+                ctx.stroke();
+
+                ctx.restore();
+              }
+
+              if (this.illuminationProgress > 0) {
+                ctx.save();
+                const glowBlur = 20 * this.illuminationProgress;
+                const glowAlpha = this.illuminationProgress;
+
+                ctx.shadowBlur = glowBlur;
+                ctx.shadowColor = '#34d399';
+                ctx.strokeStyle = `rgba(110, 231, 183, ${glowAlpha})`;
+                ctx.lineWidth = 1.8 + (1.0 * this.illuminationProgress);
+
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(tip1X, tip1Y);
+                ctx.moveTo(p2.x, p2.y);
+                ctx.lineTo(tip2X, tip2Y);
+                ctx.stroke();
+
+                const transferPos = (Math.sin(this.time * 2.5 + pairIndex * 0.8) + 1) / 2;
+                const orbX = p1.x + (p2.x - p1.x) * transferPos;
+                const orbY = p1.y + (p2.y - p1.y) * transferPos;
+
+                if (transferPos < 0.15) {
+                  p2.transmittingIntensity = Math.max(p2.transmittingIntensity || 0, (1 - transferPos / 0.15) * this.illuminationProgress);
+                } else if (transferPos > 0.85) {
+                  p1.transmittingIntensity = Math.max(p1.transmittingIntensity || 0, ((transferPos - 0.85) / 0.15) * this.illuminationProgress);
+                }
+
+                ctx.shadowBlur = 15 * glowAlpha;
+                ctx.shadowColor = '#a7f3d0';
+                ctx.fillStyle = `rgba(240, 253, 244, ${glowAlpha})`;
+                ctx.strokeStyle = `rgba(110, 231, 183, ${glowAlpha})`;
+                ctx.lineWidth = 1.5;
+
+                ctx.beginPath();
+                ctx.arc(orbX, orbY, 6.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.restore();
+              }
+              pairIndex++;
+            }
+          }
+        }
+
+        const breath = Math.sin(this.time * 2.2) * (2 + 3.5 * this.empathyProgress);
+
+        this.pointers.forEach((p) => {
+          const transInt = p.transmittingIntensity || 0;
+          p.transmittingIntensity = 0;
+
+          const shiverX = transInt > 0 ? (Math.random() - 0.5) * 4.5 * transInt : 0;
+          const shiverY = transInt > 0 ? (Math.random() - 0.5) * 4.5 * transInt : 0;
+
+          ctx.save();
+          ctx.translate(p.x + shiverX, p.y + shiverY);
+
+          if (transInt > 0) {
+            const echoRadius = 26 + (1.0 - transInt) * 22;
+            ctx.save();
+            ctx.shadowBlur = 15 * transInt;
+            ctx.shadowColor = '#34d399';
+            ctx.strokeStyle = `rgba(110, 231, 183, ${transInt * 0.85})`;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.arc(0, 0, echoRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          ctx.shadowBlur = 20 + (this.empathyProgress * 15) + (transInt * 10);
+          ctx.shadowColor = '#34d399';
+          ctx.strokeStyle = transInt > 0 ? '#a7f3d0' : '#6ee7b7';
+          ctx.fillStyle = `rgba(6, 78, 59, ${0.4 + this.empathyProgress * 0.3 + transInt * 0.2})`;
+          ctx.lineWidth = 2.0;
+
+          ctx.beginPath();
+          ctx.arc(0, 0, 22 + breath + (this.empathyProgress * 6), 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(52, 211, 153, ${0.3 + this.empathyProgress * 0.4 + transInt * 0.3})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          ctx.strokeStyle = transInt > 0 ? '#a7f3d0' : '#6ee7b7';
+          ctx.lineWidth = 2.0;
+          this.drawPrimitive(ctx, p.shape, 28 + breath * 0.5);
+
+          ctx.restore();
+        });
+      }
+
+      drawPrimitive(ctx, type, size) {
+        ctx.beginPath();
+        if (type === 'square') {
+          ctx.strokeRect(-size/2, -size/2, size, size); ctx.fillRect(-size/2, -size/2, size, size);
+        } else if (type === 'circle') {
+          ctx.arc(0, 0, size/2, 0, Math.PI * 2); ctx.stroke(); ctx.fill();
+        } else if (type === 'triangle') {
+          ctx.moveTo(0, -size/2); ctx.lineTo(size/2, size/2); ctx.lineTo(-size/2, size/2); ctx.closePath(); ctx.stroke(); ctx.fill();
+        }
+      }
+
+      onPointerDown(id, x, y, e) {
+        if (this.pointers.size < 4 && !this.pointers.has(id)) {
+          const randomShape = this.primitives[Math.floor(Math.random() * this.primitives.length)];
+          this.pointers.set(id, { x, y, shape: randomShape, transmittingIntensity: 0 });
+          playSynthNote(280 + (this.pointers.size * 70), 'sine', 0.5, 0.2);
+        }
+        if (this.isShiftPressed && this.pointers.size === 1 && !this.pointers.has('simulated_mirror')) {
+          const mirrorX = this.width - x;
+          const mirrorY = this.height - y;
+          const mirrorShape = this.primitives[Math.floor(Math.random() * this.primitives.length)];
+          this.pointers.set('simulated_mirror', { x: mirrorX, y: mirrorY, shape: mirrorShape, transmittingIntensity: 0 });
+        }
+      }
+
+      onPointerMove(id, x, y, e) {
+        if (this.pointers.has(id)) {
+          let p = this.pointers.get(id); p.x = x; p.y = y;
+        }
+        if (id !== 'simulated_mirror' && this.isShiftPressed && this.pointers.has('simulated_mirror')) {
+          let mirrorP = this.pointers.get('simulated_mirror');
+          mirrorP.x = this.width - x; mirrorP.y = this.height - y;
+        }
+      }
+
+      onPointerUp(id, x, y, e) {
+        if (this.pointers.has(id)) this.pointers.delete(id);
+        if (this.pointers.has('simulated_mirror')) this.pointers.delete('simulated_mirror');
+        playSynthNote(150, 'triangle', 0.2, 0.1);
+      }
+
+      onPointerCancel(id, x, y, e) {
+        this.pointers.clear();
+      }
+    }
+
+    class ColaboracionController extends BaseController {
+      init() {
+        this.vertices = [
+          { x: this.width / 2, y: 60, active: false, pulse: 0, id: null },
+          { x: 60, y: this.height - 60, active: false, pulse: 0, id: null },
+          { x: this.width - 60, y: this.height - 60, active: false, pulse: 0, id: null }
+        ];
+        this.fillRatio = 0.0;
+        this.completedSymbolRotation = 0;
+      }
+
+      onResize() {
+        if (this.vertices) {
+          const size = Math.min(this.width, this.height) * 0.60;
+          const cx = this.width / 2;
+          const cy = this.height / 2;
+          this.vertices[0].x = cx; this.vertices[0].y = cy - size * 0.45;
+          this.vertices[1].x = cx - size * 0.45; this.vertices[1].y = cy + size * 0.4;
+          this.vertices[2].x = cx + size * 0.45; this.vertices[2].y = cy + size * 0.4;
+        }
+      }
+
+      update() {
+        this.vertices.forEach(v => {
+          v.pulse = Math.sin(this.time * 4) * 3 + 10;
+          let active = false;
+          this.pointers.forEach(p => {
+            if (Math.hypot(v.x - p.x, v.y - p.y) < 35) active = true;
+          });
+          v.active = active;
+        });
+
+        const activeCount = this.vertices.filter(v => v.active).length;
+        const targetFill = activeCount / 3.0;
+        this.fillRatio += (targetFill - this.fillRatio) * 0.1;
+        if (this.fillRatio > 0.95) this.completedSymbolRotation += 0.02;
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(34, 197, 94, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(this.vertices[0].x, this.vertices[0].y);
+        ctx.lineTo(this.vertices[1].x, this.vertices[1].y);
+        ctx.lineTo(this.vertices[2].x, this.vertices[2].y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+
+        if (this.fillRatio > 0.02) {
+          ctx.save();
+          const cx = (this.vertices[0].x + this.vertices[1].x + this.vertices[2].x) / 3;
+          const cy = (this.vertices[0].y + this.vertices[1].y + this.vertices[2].y) / 3;
+          ctx.fillStyle = `rgba(34, 197, 94, ${this.fillRatio * 0.35})`;
+          ctx.shadowBlur = this.fillRatio * 20;
+          ctx.shadowColor = '#22c55e';
+          ctx.beginPath();
+          this.vertices.forEach((v, i) => {
+            const px = cx + (v.x - cx) * this.fillRatio;
+            const py = cy + (v.y - cy) * this.fillRatio;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          });
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        this.vertices.forEach(v => {
+          if (v.active) {
+            ctx.save();
+            ctx.strokeStyle = '#4ade80';
+            ctx.shadowBlur = 10; ctx.shadowColor = '#22c55e'; ctx.lineWidth = 3;
+            ctx.beginPath();
+            const cx = (this.vertices[0].x + this.vertices[1].x + this.vertices[2].x) / 3;
+            const cy = (this.vertices[0].y + this.vertices[1].y + this.vertices[2].y) / 3;
+            ctx.moveTo(v.x, v.y);
+            ctx.lineTo(v.x + (cx - v.x) * this.fillRatio, v.y + (cy - v.y) * this.fillRatio);
+            ctx.stroke();
+            ctx.restore();
+          }
+        });
+
+        this.vertices.forEach(v => {
+          ctx.save();
+          ctx.translate(v.x, v.y);
+          ctx.shadowBlur = v.active ? 15 : 6;
+          ctx.shadowColor = '#22c55e';
+          ctx.fillStyle = v.active ? '#4ade80' : 'rgba(34, 197, 94, 0.3)';
+          ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(0, 0, v.pulse, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.restore();
+        });
+      }
+
+      triggerInteraction(x, y) {
+        this.vertices.forEach((v, index) => {
+          if (Math.hypot(v.x - x, v.y - y) < 40) {
+            const freqs = [261.63, 329.63, 392.00];
+            playSynthNote(freqs[index], 'triangle', 0.6, 0.2);
+          }
+        });
+      }
+    }
+
+    // ==========================================
+    // SUBSISTEMA 3: FUTURO (Púrpura) - CONTROLADORES
+    // ==========================================
+
+    class IncertidumbreController extends BaseController {
+      init() {
+        this.radius = 16;
+        this.x = this.width / 2;
+        this.y = this.height / 2;
+        this.vx = 0; this.vy = 0;
+        this.trails = []; this.obstacles = []; this.sparks = [];
+        this.isDragging = false; this.pulse = 0;
+        this.generateInitialObstacles();
+      }
+
+      onResize() {
+        if (!this.isDragging) {
+          this.x = this.width / 2; this.y = this.height / 2;
+        }
+        this.generateInitialObstacles();
+      }
+
+      generateInitialObstacles() {
+        this.obstacles = [];
+        const types = ['square', 'triangle', 'line'];
+        const cx = this.width / 2; const cy = this.height / 2;
+        for (let i = 0; i < 7; i++) {
+          const angle = (i / 7) * Math.PI * 2 + Math.random() * 0.4;
+          const dist = Math.min(this.width, this.height) * (0.2 + Math.random() * 0.22);
+          this.obstacles.push({
+            x: cx + Math.cos(angle) * dist, y: cy + Math.sin(angle) * dist,
+            size: Math.random() * 12 + 18, type: types[i % types.length],
+            angle: Math.random() * Math.PI, vRot: (Math.random() - 0.5) * 0.02, pulse: Math.random() * Math.PI
+          });
+        }
+      }
+
+      update() {
+        this.pulse = Math.sin(this.time * 3) * 4 + 16;
+
+        if (this.isDragging && this.pointers.size > 0) {
+          const ptr = Array.from(this.pointers.values())[0];
+          const dx = ptr.x - this.x;
+          const dy = ptr.y - this.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist > 5) {
+            const noisyAngle = Math.atan2(dy, dx) + Math.PI + Math.sin(this.time * 6) * 1.2;
+            const force = Math.min(dist * 0.12, 4.5);
+            this.vx += Math.cos(noisyAngle) * force * 0.35;
+            this.vy += Math.sin(noisyAngle) * force * 0.35;
+
+            if (Math.random() < 0.08 && this.obstacles.length < 14) {
+              const spawnAngle = Math.random() * Math.PI * 2;
+              const spawnDist = Math.random() * 60 + 30;
+              this.obstacles.push({
+                x: Math.max(25, Math.min(this.width - 25, this.x + Math.cos(spawnAngle) * spawnDist)),
+                y: Math.max(25, Math.min(this.height - 25, this.y + Math.sin(spawnAngle) * spawnDist)),
+                size: Math.random() * 12 + 16,
+                type: ['square', 'triangle', 'line'][Math.floor(Math.random() * 3)],
+                angle: Math.random() * Math.PI, vRot: (Math.random() - 0.5) * 0.03, pulse: 0
+              });
+            }
+          }
+
+          if (Math.random() < 0.6) {
+            this.trails.push({ x: this.x, y: this.y, radius: this.radius, alpha: 0.7 });
+          }
+        }
+
+        this.vx *= 0.88; this.vy *= 0.88;
+        this.x += this.vx; this.y += this.vy;
+
+        if (this.x < this.radius) { this.x = this.radius; this.vx *= -1; }
+        if (this.x > this.width - this.radius) { this.x = this.width - this.radius; this.vx *= -1; }
+        if (this.y < this.radius) { this.y = this.radius; this.vy *= -1; }
+        if (this.y > this.height - this.radius) { this.y = this.height - this.radius; this.vy *= -1; }
+
+        this.obstacles.forEach(ob => {
+          ob.angle += ob.vRot; ob.pulse += 0.03;
+          const dx = this.x - ob.x; const dy = this.y - ob.y;
+          const distance = Math.hypot(dx, dy);
+          const minDistance = this.radius + ob.size * 0.6;
+
+          if (distance < minDistance) {
+            const overlap = minDistance - distance;
+            const nx = dx / (distance || 1); const ny = dy / (distance || 1);
+            this.x += nx * overlap; this.y += ny * overlap;
+            this.vx = nx * 6.0 + (Math.random() - 0.5) * 2;
+            this.vy = ny * 6.0 + (Math.random() - 0.5) * 2;
+
+            for (let i = 0; i < 5; i++) {
+              this.sparks.push({
+                x: ob.x + nx * (ob.size / 2), y: ob.y + ny * (ob.size / 2),
+                vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
+                alpha: 0.9, size: Math.random() * 3 + 1
+              });
+            }
+            playSynthNote(160 + Math.random() * 280, 'sawtooth', 0.25, 0.2);
+          }
+        });
+
+        this.trails.forEach(t => t.alpha -= 0.025);
+        this.trails = this.trails.filter(t => t.alpha > 0);
+        this.sparks.forEach(s => { s.x += s.vx; s.y += s.vy; s.alpha -= 0.04; });
+        this.sparks = this.sparks.filter(s => s.alpha > 0);
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        this.trails.forEach(t => {
+          ctx.save();
+          ctx.strokeStyle = `rgba(168, 85, 247, ${t.alpha * 0.4})`;
+          ctx.lineWidth = 1.0; ctx.beginPath(); ctx.arc(t.x, t.y, t.radius * t.alpha, 0, Math.PI * 2); ctx.stroke();
+          ctx.restore();
+        });
+
+        if (this.isDragging && this.pointers.size > 0) {
+          const ptr = Array.from(this.pointers.values())[0];
+          ctx.save();
+          ctx.strokeStyle = 'rgba(192, 132, 252, 0.25)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 5]);
+          ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(ptr.x, ptr.y); ctx.stroke();
+          ctx.restore();
+        }
+
+        this.obstacles.forEach(ob => {
+          ctx.save();
+          ctx.translate(ob.x, ob.y); ctx.rotate(ob.angle);
+          ctx.strokeStyle = 'rgba(168, 85, 247, 0.65)'; ctx.fillStyle = 'rgba(168, 85, 247, 0.08)';
+          ctx.lineWidth = 1.5; ctx.shadowBlur = 8; ctx.shadowColor = '#a855f7';
+          ctx.beginPath();
+          if (ob.type === 'square') {
+            ctx.strokeRect(-ob.size / 2, -ob.size / 2, ob.size, ob.size); ctx.fillRect(-ob.size / 2, -ob.size / 2, ob.size, ob.size);
+          } else if (ob.type === 'triangle') {
+            ctx.moveTo(0, -ob.size / 2); ctx.lineTo(ob.size / 2, ob.size / 2); ctx.lineTo(-ob.size / 2, ob.size / 2); ctx.closePath(); ctx.stroke(); ctx.fill();
+          } else if (ob.type === 'line') {
+            ctx.moveTo(-ob.size / 2, 0); ctx.lineTo(ob.size / 2, 0); ctx.stroke();
+          }
+          ctx.restore();
+        });
+
+        this.sparks.forEach(s => {
+          ctx.save();
+          ctx.fillStyle = `rgba(216, 180, 254, ${s.alpha})`;
+          ctx.shadowBlur = 6; ctx.shadowColor = '#c084fc';
+          ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        });
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.shadowBlur = this.isDragging ? 22 : 12; ctx.shadowColor = '#a855f7';
+        ctx.strokeStyle = '#c084fc'; ctx.fillStyle = 'rgba(168, 85, 247, 0.25)'; ctx.lineWidth = 2.5;
+
+        if (!this.isDragging) {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.pulse, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(192, 132, 252, ${0.3 - (this.pulse - 12) * 0.02})`;
+          ctx.lineWidth = 1.0; ctx.stroke();
+          ctx.strokeStyle = '#c084fc'; ctx.lineWidth = 2.5;
+        }
+
+        ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.stroke(); ctx.fill();
+        ctx.restore();
+      }
+
+      onPointerDown(id, x, y, e) {
+        super.onPointerDown(id, x, y, e);
+        this.isDragging = true;
+        playSynthNote(260, 'sine', 0.4, 0.2);
+      }
+
+      onPointerUp(id, e) {
+        super.onPointerUp(id, e);
+        if (this.pointers.size === 0) this.isDragging = false;
+      }
+    }
+
+    class AnsiedadController extends BaseController {
+      init() {
+        this.baseRadius = 15;
+        this.radius = 15;
+        this.x = this.width / 2;
+        this.y = this.height / 2;
+        this.targetX = this.x;
+        this.targetY = this.y;
+        
+        this.isDragging = false;
+        this.activePointerId = null;
+
+        this.calmProgress = 0.0;
+        this.nonCircleProximity = 0.0;
+
+        this.shiverX = 0;
+        this.shiverY = 0;
+
+        this.entities = [];
+        this.trails = [];
+        this.calmPulses = [];
+        this.anxietySparks = [];
+
+        this.lastSoundTime = 0;
+        this.generateEntities();
+      }
+
+      onResize() {
+        if (!this.isDragging) {
+          this.x = this.width / 2;
+          this.y = this.height / 2;
+          this.targetX = this.x;
+          this.targetY = this.y;
+        }
+        this.generateEntities();
+      }
+
+      generateEntities() {
+        this.entities = [];
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const minDim = Math.min(this.width, this.height);
+
+        this.entities.push({
+          x: cx - minDim * 0.32,
+          y: cy - minDim * 0.32,
+          size: 26,
+          type: 'circle',
+          rot: 0,
+          vRot: 0.005,
+          pulse: 0
+        });
+
+        this.entities.push({
+          x: cx + minDim * 0.32,
+          y: cy - minDim * 0.28,
+          size: 26,
+          type: 'triangle',
+          rot: 0.3,
+          vRot: 0.012,
+          pulse: 0
+        });
+
+        this.entities.push({
+          x: cx + minDim * 0.32,
+          y: cy + minDim * 0.30,
+          size: 24,
+          type: 'square',
+          rot: -0.2,
+          vRot: -0.01,
+          pulse: 0.8
+        });
+
+        this.entities.push({
+          x: cx - minDim * 0.32,
+          y: cy + minDim * 0.30,
+          size: 34,
+          type: 'line',
+          rot: 0.8,
+          vRot: 0.015,
+          pulse: 1.5
+        });
+      }
+
+      update() {
+        if (this.isDragging) {
+          let desiredX = this.x + (this.targetX - this.x) * 0.25;
+          let desiredY = this.y + (this.targetY - this.y) * 0.25;
+
+          this.entities.forEach(ent => {
+            if (ent.type !== 'circle') {
+              const dx = desiredX - ent.x;
+              const dy = desiredY - ent.y;
+              const dist = Math.hypot(dx, dy);
+              const minDist = (this.baseRadius + ent.size * 0.5) + 3;
+
+              if (dist < minDist && dist > 0) {
+                const overlap = minDist - dist;
+                desiredX += (dx / dist) * overlap;
+                desiredY += (dy / dist) * overlap;
+              }
+            }
+          });
+
+          this.x = desiredX;
+          this.y = desiredY;
+        }
+
+        const margin = this.baseRadius + 8;
+        if (this.x < margin) this.x = margin;
+        if (this.x > this.width - margin) this.x = this.width - margin;
+        if (this.y < margin) this.y = margin;
+        if (this.y > this.height - margin) this.y = this.height - margin;
+
+        let targetCalm = 0.0;
+        let targetNonCircle = 0.0;
+
+        this.entities.forEach(ent => {
+          ent.rot += ent.vRot;
+          ent.pulse += 0.04;
+          const dist = Math.hypot(this.x - ent.x, this.y - ent.y);
+          const influenceRange = 75 + ent.size;
+
+          if (dist < influenceRange) {
+            const proximity = 1 - (dist / influenceRange);
+            const intensity = Math.pow(proximity, 1.2);
+
+            if (ent.type === 'circle') {
+              targetCalm = Math.max(targetCalm, intensity);
+            } else {
+              targetNonCircle = Math.max(targetNonCircle, intensity);
+            }
+          }
+        });
+
+        this.calmProgress += (targetCalm - this.calmProgress) * 0.12;
+        this.nonCircleProximity += (targetNonCircle - this.nonCircleProximity) * 0.15;
+
+        if (this.calmProgress > 0.05) {
+          const breath = Math.sin(this.time * 2.8) * (2.8 * this.calmProgress);
+          this.radius = this.baseRadius + breath;
+
+          const residualShiver = (1 - this.calmProgress) * 1.5;
+          this.shiverX = (Math.random() - 0.5) * residualShiver;
+          this.shiverY = (Math.random() - 0.5) * residualShiver;
+
+          if (Math.random() < 0.08 * this.calmProgress) {
+            this.calmPulses.push({
+              x: this.x,
+              y: this.y,
+              radius: this.radius,
+              alpha: 0.8 * this.calmProgress
+            });
+          }
+
+          if (this.calmProgress > 0.6 && this.time - this.lastSoundTime > 0.6) {
+            this.lastSoundTime = this.time;
+            playSynthNote(440, 'sine', 0.8, 0.08 * this.calmProgress);
+          }
+        } 
+        else {
+          let anxietyMagnitude = 3.5 + (this.nonCircleProximity * 10.0);
+          this.shiverX = (Math.random() - 0.5) * anxietyMagnitude;
+          this.shiverY = (Math.random() - 0.5) * anxietyMagnitude;
+          this.radius = this.baseRadius + Math.sin(this.time * 12.0) * (1.2 + this.nonCircleProximity * 2.5);
+
+          if (this.nonCircleProximity > 0.15 && Math.random() < 0.3 * this.nonCircleProximity) {
+            this.anxietySparks.push({
+              x: this.x + (Math.random() - 0.5) * 18,
+              y: this.y + (Math.random() - 0.5) * 18,
+              vx: (Math.random() - 0.5) * 4,
+              vy: (Math.random() - 0.5) * 4,
+              alpha: 0.8,
+              size: Math.random() * 2.2 + 1.0
+            });
+          }
+
+          if (this.nonCircleProximity > 0.2 && this.time - this.lastSoundTime > 0.2) {
+            this.lastSoundTime = this.time;
+            playSynthNote(320 + Math.random() * 200, 'triangle', 0.12, 0.05 * this.nonCircleProximity);
+          }
+        }
+
+        if (this.isDragging && Math.random() < 0.5) {
+          this.trails.push({
+            x: this.x + this.shiverX,
+            y: this.y + this.shiverY,
+            radius: this.radius,
+            alpha: 0.5
+          });
+        }
+
+        this.trails.forEach(t => t.alpha -= 0.03);
+        this.trails = this.trails.filter(t => t.alpha > 0);
+
+        this.calmPulses.forEach(cp => {
+          cp.radius += 1.2;
+          cp.alpha -= 0.02;
+        });
+        this.calmPulses = this.calmPulses.filter(cp => cp.alpha > 0);
+
+        this.anxietySparks.forEach(s => {
+          s.x += s.vx;
+          s.y += s.vy;
+          s.alpha -= 0.05;
+        });
+        this.anxietySparks = this.anxietySparks.filter(s => s.alpha > 0);
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        this.entities.forEach(ent => {
+          ctx.save();
+          ctx.translate(ent.x, ent.y);
+          ctx.rotate(ent.rot);
+
+          if (ent.type === 'circle') {
+            const pulseSize = ent.size + Math.sin(ent.pulse) * 3;
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#c084fc';
+            ctx.strokeStyle = 'rgba(216, 180, 254, 0.75)';
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(0, 0, pulseSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          } 
+          else if (ent.type === 'triangle') {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#a855f7';
+            ctx.strokeStyle = 'rgba(192, 132, 252, 0.8)';
+            ctx.fillStyle = 'rgba(147, 51, 234, 0.12)';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.moveTo(0, -ent.size / 2);
+            ctx.lineTo(ent.size / 2, ent.size / 2);
+            ctx.lineTo(-ent.size / 2, ent.size / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          } 
+          else if (ent.type === 'square') {
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#9333ea';
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
+            ctx.fillStyle = 'rgba(88, 28, 135, 0.18)';
+            ctx.lineWidth = 1.8;
+            ctx.fillRect(-ent.size / 2, -ent.size / 2, ent.size, ent.size);
+            ctx.strokeRect(-ent.size / 2, -ent.size / 2, ent.size, ent.size);
+          } 
+          else if (ent.type === 'line') {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#c084fc';
+            ctx.strokeStyle = 'rgba(192, 132, 252, 0.75)';
+            ctx.lineWidth = 2.0;
+            ctx.beginPath();
+            ctx.moveTo(-ent.size / 2, 0);
+            ctx.lineTo(ent.size / 2, 0);
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        });
+
+        this.calmPulses.forEach(cp => {
+          ctx.save();
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = '#e9d5ff';
+          ctx.strokeStyle = `rgba(233, 213, 255, ${cp.alpha})`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(cp.x, cp.y, cp.radius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        });
+
+        this.trails.forEach(t => {
+          ctx.save();
+          ctx.strokeStyle = `rgba(168, 85, 247, ${t.alpha * 0.4})`;
+          ctx.lineWidth = 1.0;
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, t.radius * t.alpha, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        });
+
+        this.anxietySparks.forEach(s => {
+          ctx.save();
+          ctx.fillStyle = `rgba(243, 232, 255, ${s.alpha})`;
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = '#c084fc';
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        });
+
+        ctx.save();
+        ctx.translate(this.x + this.shiverX, this.y + this.shiverY);
+
+        ctx.shadowBlur = this.calmProgress > 0.05 ? (24 * this.calmProgress + 10) : (this.isDragging ? 20 : 12);
+        ctx.shadowColor = '#c084fc';
+        ctx.strokeStyle = this.calmProgress > 0.05 ? '#f3e8ff' : '#c084fc';
+        ctx.fillStyle = `rgba(168, 85, 247, ${0.22 + this.calmProgress * 0.3})`;
+        ctx.lineWidth = 2.0;
+
+        if (this.calmProgress <= 0.05) {
+          ctx.setLineDash([4, 4]);
+        }
+
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.restore();
+      }
+
+      onPointerDown(id, x, y, e) {
+        super.onPointerDown(id, x, y, e);
+        this.isDragging = true;
+        this.activePointerId = id;
+        this.targetX = x;
+        this.targetY = y;
+        playSynthNote(280, 'sine', 0.25, 0.15);
+      }
+
+      onPointerMove(id, x, y, e) {
+        super.onPointerMove(id, x, y, e);
+        if (this.isDragging) {
+          this.targetX = x;
+          this.targetY = y;
+        }
+      }
+
+      onPointerUp(id, e) {
+        super.onPointerUp(id, e);
+        if (this.pointers.size === 0) {
+          this.isDragging = false;
+          this.activePointerId = null;
+        }
+      }
+    }
+
+    class ExpectativaController extends BaseController {
+      init() {
+        this.progress = 0.0;
+        this.isDragging = false;
+        this.playedCompletionSound = false;
+        this.particles = [];
+        this.nodes = [];
+        this.segments = [];
+        this.totalLength = 0;
+        this.circleRadius = 15;
+        this.circleX = 0;
+        this.circleY = 0;
+        this.lastSoundProgress = 0;
+        this.environmentShapes = [];
+        this.buildPath();
+      }
+
+      onResize() {
+        this.buildPath();
+      }
+
+      buildPath() {
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const scale = Math.min(this.width, this.height);
+
+        // Figuras geométricas ambientales
+        this.environmentShapes = [
+          { x: cx - scale * 0.38, y: cy - scale * 0.38, size: 24, type: 'triangle', angle: 0.4 },
+          { x: cx + scale * 0.38, y: cy - scale * 0.38, size: 26, type: 'square', angle: 0.2 },
+          { x: cx - scale * 0.38, y: cy + scale * 0.38, size: 28, type: 'circle', angle: 0 },
+          { x: cx + scale * 0.38, y: cy + scale * 0.38, size: 22, type: 'triangle', angle: -0.5 },
+          { x: cx, y: cy - scale * 0.40, size: 26, type: 'square', angle: 0.6 },
+          { x: cx, y: cy + scale * 0.40, size: 30, type: 'line', angle: -0.3 }
+        ];
+
+        // Camino
+        this.nodes = [
+          { x: cx - scale * 0.32, y: cy + scale * 0.22 },
+          { x: cx - scale * 0.32, y: cy - scale * 0.22 },
+          { x: cx - scale * 0.10, y: cy - scale * 0.10 },
+          { x: cx + scale * 0.15, y: cy - scale * 0.26 },
+          { x: cx + scale * 0.32, y: cy + scale * 0.02 },
+          { x: cx + scale * 0.20, y: cy + scale * 0.26 },
+          { x: cx - scale * 0.05, y: cy + scale * 0.20 }
+        ];
+
+        this.segments = [];
+        this.totalLength = 0;
+        for (let i = 0; i < this.nodes.length - 1; i++) {
+          const p1 = this.nodes[i];
+          const p2 = this.nodes[i + 1];
+          const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          this.segments.push({ p1, p2, len });
+          this.totalLength += len;
+        }
+
+        this.updateCirclePosition();
+      }
+
+      updateCirclePosition() {
+        if (this.segments.length === 0) return;
+
+        const targetDist = this.progress * this.totalLength;
+        let accumulated = 0;
+
+        for (let i = 0; i < this.segments.length; i++) {
+          const seg = this.segments[i];
+          if (accumulated + seg.len >= targetDist || i === this.segments.length - 1) {
+            const segDist = targetDist - accumulated;
+            const ratio = seg.len > 0 ? Math.max(0, Math.min(1, segDist / seg.len)) : 0;
+            this.circleX = seg.p1.x + (seg.p2.x - seg.p1.x) * ratio;
+            this.circleY = seg.p1.y + (seg.p2.y - seg.p1.y) * ratio;
+            break;
+          }
+          accumulated += seg.len;
+        }
+      }
+
+      getSequentialTargetProgress(x, y) {
+        if (this.segments.length === 0) return this.progress;
+
+        const currentDist = this.progress * this.totalLength;
+        
+        let currentSegIndex = 0;
+        let acc = 0;
+        for (let i = 0; i < this.segments.length; i++) {
+          const seg = this.segments[i];
+          if (currentDist >= acc && currentDist <= acc + seg.len + 0.001) {
+            currentSegIndex = i;
+            break;
+          }
+          acc += seg.len;
+        }
+
+        const candidateIndices = [];
+        if (currentSegIndex > 0) candidateIndices.push(currentSegIndex - 1);
+        candidateIndices.push(currentSegIndex);
+        if (currentSegIndex < this.segments.length - 1) candidateIndices.push(currentSegIndex + 1);
+
+        let bestDist = Infinity;
+        let bestPathDist = currentDist;
+
+        candidateIndices.forEach(idx => {
+          const seg = this.segments[idx];
+          let segAcc = 0;
+          for (let k = 0; k < idx; k++) {
+            segAcc += this.segments[k].len;
+          }
+
+          const dx = seg.p2.x - seg.p1.x;
+          const dy = seg.p2.y - seg.p1.y;
+          const segLenSq = dx * dx + dy * dy;
+          let t = segLenSq > 0 ? ((x - seg.p1.x) * dx + (y - seg.p1.y) * dy) / segLenSq : 0;
+          t = Math.max(0, Math.min(1, t));
+
+          const projX = seg.p1.x + t * dx;
+          const projY = seg.p1.y + t * dy;
+          const dist = Math.hypot(x - projX, y - projY);
+
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestPathDist = segAcc + t * seg.len;
+          }
+        });
+
+        return Math.max(0, Math.min(1, bestPathDist / (this.totalLength || 1)));
+      }
+
+      update() {
+        if (this.isDragging && this.pointers.size > 0) {
+          const ptr = Array.from(this.pointers.values())[0];
+          const targetProg = this.getSequentialTargetProgress(ptr.x, ptr.y);
+
+          const maxStepPerFrame = 0.02;
+          const diff = targetProg - this.progress;
+          if (Math.abs(diff) > maxStepPerFrame) {
+            this.progress += Math.sign(diff) * maxStepPerFrame;
+          } else {
+            this.progress = targetProg;
+          }
+
+          this.updateCirclePosition();
+
+          if (Math.abs(this.progress - this.lastSoundProgress) > 0.05) {
+            this.lastSoundProgress = this.progress;
+            playSynthNote(220 + this.progress * 440, 'sine', 0.15, 0.08);
+          }
+
+          if (this.progress >= 0.98 && !this.playedCompletionSound) {
+            this.playedCompletionSound = true;
+            playSynthNote(880, 'sine', 1.2, 0.3);
+
+            for (let i = 0; i < 20; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = Math.random() * 3 + 1;
+              this.particles.push({
+                x: this.circleX,
+                y: this.circleY,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: Math.random() * 3.5 + 1.2,
+                life: 1.0
+              });
+            }
+          }
+        }
+
+        this.particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life -= 0.035;
+        });
+        this.particles = this.particles.filter(p => p.life > 0);
+      }
+
+      draw(ctx) {
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        // ENTIDADES AMBIENTALES
+        this.environmentShapes.forEach(shape => {
+          ctx.save();
+          ctx.translate(shape.x, shape.y);
+          ctx.rotate(shape.angle + Math.sin(this.time * 1.5 + shape.x) * 0.1);
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = '#a855f7';
+          ctx.strokeStyle = 'rgba(192, 132, 252, 0.65)';
+          ctx.fillStyle = 'rgba(168, 85, 247, 0.08)';
+          ctx.lineWidth = 1.5;
+
+          ctx.beginPath();
+          if (shape.type === 'square') {
+            ctx.strokeRect(-shape.size / 2, -shape.size / 2, shape.size, shape.size);
+            ctx.fillRect(-shape.size / 2, -shape.size / 2, shape.size, shape.size);
+          } else if (shape.type === 'triangle') {
+            ctx.moveTo(0, -shape.size / 2);
+            ctx.lineTo(shape.size / 2, shape.size / 2);
+            ctx.lineTo(-shape.size / 2, shape.size / 2);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.fill();
+          } else if (shape.type === 'circle') {
+            ctx.arc(0, 0, shape.size / 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fill();
+          } else if (shape.type === 'line') {
+            ctx.moveTo(-shape.size / 2, 0);
+            ctx.lineTo(shape.size / 2, 0);
+            ctx.stroke();
+          }
+          ctx.restore();
+        });
+
+        // TRAYECTO APAGADO
+        ctx.save();
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.20)';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([4, 6]);
+        ctx.beginPath();
+        this.nodes.forEach((n, idx) => {
+          if (idx === 0) ctx.moveTo(n.x, n.y); else ctx.lineTo(n.x, n.y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // TRAYECTO ILUMINADO
+        if (this.progress > 0) {
+          ctx.save();
+          ctx.strokeStyle = '#c084fc';
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = '#a855f7';
+          ctx.lineWidth = 3.2;
+
+          const activeDist = this.progress * this.totalLength;
+          let acc = 0;
+
+          ctx.beginPath();
+          for (let i = 0; i < this.segments.length; i++) {
+            const seg = this.segments[i];
+            if (acc >= activeDist) break;
+
+            const remaining = activeDist - acc;
+            ctx.moveTo(seg.p1.x, seg.p1.y);
+
+            if (remaining >= seg.len) {
+              ctx.lineTo(seg.p2.x, seg.p2.y);
+            } else {
+              const ratio = seg.len > 0 ? remaining / seg.len : 0;
+              const px = seg.p1.x + (seg.p2.x - seg.p1.x) * ratio;
+              const py = seg.p1.y + (seg.p2.y - seg.p1.y) * ratio;
+              ctx.lineTo(px, py);
+            }
+            acc += seg.len;
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // PARTICULAS DE FINALIZACIÓN
+        this.particles.forEach(p => {
+          ctx.save();
+          ctx.fillStyle = `rgba(216, 180, 254, ${p.life})`;
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = '#c084fc';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        });
+
+        // CÍRCULO PROTAGONISTA
+        ctx.save();
+        ctx.translate(this.circleX, this.circleY);
+        ctx.shadowBlur = this.isDragging ? 22 : 12;
+        ctx.shadowColor = '#a855f7';
+        ctx.strokeStyle = '#c084fc';
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.25)';
+        ctx.lineWidth = 2.5;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, this.circleRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      onPointerDown(id, x, y, e) {
+        super.onPointerDown(id, x, y, e);
+        this.isDragging = true;
+        const targetProg = this.getSequentialTargetProgress(x, y);
+        const maxInitialJump = 0.03;
+        const diff = targetProg - this.progress;
+        if (Math.abs(diff) > maxInitialJump) {
+          this.progress += Math.sign(diff) * maxInitialJump;
+        } else {
+          this.progress = targetProg;
+        }
+        this.updateCirclePosition();
+        playSynthNote(220 + this.progress * 440, 'sine', 0.2, 0.12);
+      }
+
+      onPointerMove(id, x, y, e) {
+        super.onPointerMove(id, x, y, e);
+        if (this.isDragging) {
+          const targetProg = this.getSequentialTargetProgress(x, y);
+          const maxMoveStep = 0.025;
+          const diff = targetProg - this.progress;
+          if (Math.abs(diff) > maxMoveStep) {
+            this.progress += Math.sign(diff) * maxMoveStep;
+          } else {
+            this.progress = targetProg;
+          }
+          this.updateCirclePosition();
+        }
+      }
+
+      onPointerUp(id, e) {
+        super.onPointerUp(id, e);
+        if (this.pointers.size === 0) {
+          this.isDragging = false;
+        }
+      }
+    }
+
+    // ==========================================
+    // SISTEMA DE MENÚ (ABRIR/CERRAR MOSAICOS)
+    // ==========================================
+    function openTile(id) {
+      if (window.innerWidth < 768) return;
+
+      const card = document.getElementById('card-' + id);
+      const overlay = document.getElementById('overlay-' + id);
+      const container = document.getElementById('container-' + id);
+      const headerOrig = document.getElementById('header-' + id);
+      const headerAct = document.getElementById('active-header-' + id);
+
+      const grid = document.getElementById('grid-container');
+      const row = card.parentElement;
+
+      grid.style.width = grid.offsetWidth + 'px';
+      grid.style.height = grid.offsetHeight + 'px';
+      grid.classList.add('relative');
+
+      row.classList.remove('overflow-hidden');
+
+      card.classList.remove('relative');
+      card.classList.add('absolute', 'inset-0', 'z-50', 'bg-[#080812]', 'rounded-3xl', 'shadow-[0_0_40px_rgba(0,0,0,0.8)]', 'border', 'border-zinc-800/80', 'h-full');
+
+      container.classList.remove('aspect-square');
+      container.classList.add('h-full');
+      
+      overlay.classList.add('md:hidden');
+      
+      headerOrig.classList.add('hidden');
+      headerOrig.classList.remove('flex');
+      
+      headerAct.classList.remove('hidden');
+      headerAct.classList.add('flex');
+
+      setTimeout(triggerResize, 50);
+    }
+
+    function closeTile(id, event) {
+      if (event) event.stopPropagation();
+      if (window.innerWidth < 768) return;
+
+      const card = document.getElementById('card-' + id);
+      const overlay = document.getElementById('overlay-' + id);
+      const container = document.getElementById('container-' + id);
+      const headerOrig = document.getElementById('header-' + id);
+      const headerAct = document.getElementById('active-header-' + id);
+
+      const grid = document.getElementById('grid-container');
+      const row = card.parentElement;
+
+      card.classList.add('relative');
+      card.classList.remove('absolute', 'inset-0', 'z-50', 'bg-[#080812]', 'rounded-3xl', 'shadow-[0_0_40px_rgba(0,0,0,0.8)]', 'border', 'border-zinc-800/80', 'h-full');
+
+      container.classList.add('aspect-square');
+      container.classList.remove('h-full');
+
+      row.classList.add('overflow-hidden');
+
+      grid.style.width = '';
+      grid.style.height = '';
+      grid.classList.remove('relative');
+
+      overlay.classList.remove('md:hidden');
+
+      headerAct.classList.add('hidden');
+      headerAct.classList.remove('flex');
+      
+      headerOrig.classList.remove('hidden');
+      headerOrig.classList.add('flex');
+
+      if (controllers[id]) {
+        controllers[id].pointers.clear();
+      }
+
+      setTimeout(triggerResize, 50);
+    }
+
+    // Inicialización general e inicio del bucle global maestro
+    window.onload = function() {
+      setupCanvas('memoria', MemoriaController);
+      setupCanvas('herencia', HerenciaController);
+      setupCanvas('caducidad', CaducidadController);
+      
+      setupCanvas('identidad', IdentidadController);
+      setupCanvas('empatia', EmpatiaController);
+      setupCanvas('colaboracion', ColaboracionController);
+      
+      setupCanvas('incertidumbre', IncertidumbreController);
+      setupCanvas('ansiedad', AnsiedadController);
+      setupCanvas('expectativa', ExpectativaController);
+
+      requestAnimationFrame(globalLoop);
+    }
+
+    function resetAllTiles() {
+      Object.keys(controllers).forEach(key => {
+        controllers[key].reset();
+      });
+      playSynthNote(520, 'sine', 1.0, 0.1);
+    }
+  </script>
+</body>
+</html>
